@@ -22,9 +22,10 @@ class Train:
     total_epochs: int = 100
     step: int = 0
     epoch: int = 0
-    kl_weight_min: float = 0.0001
-    kl_weight_max: float = 1.0
+    kl_weight_min: float = 1e-4
+    kl_weight_max: float = 1e-8
     kl_anneal_steps: int = 20000
+    grad_norm_reg: float = 1e-4
 
     def start(self) -> None:
         scaler = GradScaler()
@@ -45,7 +46,6 @@ class Train:
                     )
                 self.optimizer.zero_grad()
                 scaler.scale(loss).backward()
-
                 scaler.step(self.optimizer)
                 scaler.update()
 
@@ -61,6 +61,7 @@ class Train:
                 self.step += 1
 
     def save(self):
+        self.model.eval()
         state = self.model.state_dict()
         org_state = OrderedDict()
         for k, v in state.items():
@@ -74,7 +75,7 @@ class Train:
             org_state = OrderedDict()
             for k, v in state.items():
                 org_state[k.replace("_org_mod.", "")] = v
-            self.model.load_state_dict(org_state)
+            self.model.load_state_dict(org_state, strict=False)
         except Exception as e:
             print(e)
             print("No model loaded")
