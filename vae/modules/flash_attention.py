@@ -5,10 +5,6 @@
 
 from typing import Optional, Union
 from torch import Tensor, nn
-from torch.ao.quantization import (
-    QConfig,
-    MovingAverageMinMaxObserver,
-)
 import torch
 from xformers.ops import memory_efficient_attention
 
@@ -24,15 +20,6 @@ class MultiheadAttention(nn.Module):
         self.head_size = head_size
         self.norm = nn.LayerNorm(embed_dim)
         self.in_proj = nn.Linear(embed_dim * 3, embed_dim * 3)
-
-        self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver.with_args(
-                dtype=torch.qint8
-            ),
-            weight=MovingAverageMinMaxObserver.with_args(
-                dtype=torch.qint8
-            ),
-        )
 
     def _split_heads(self, x: Tensor) -> Tensor:
         return x.view(x.shape[0], x.shape[1], self.embed_dim // self.head_size, -1)
@@ -65,6 +52,7 @@ class MultiheadAttention(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
+        x = self.dequant(x)
         x = self.norm(x)
         x = self.in_proj(x.repeat(1, 1, 3))
         qkv = self._split_heads(x)
@@ -75,4 +63,5 @@ class MultiheadAttention(nn.Module):
             v,
         )
         x = self._merge_heads(a_val)
+        x = self.quant(x)
         return x

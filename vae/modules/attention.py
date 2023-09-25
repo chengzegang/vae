@@ -13,6 +13,7 @@ class AttentionLayer(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = x + self.attn(x)
         x = x + self.mlp(x)
+
         return x
 
 

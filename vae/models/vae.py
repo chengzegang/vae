@@ -4,10 +4,6 @@ from typing import Any, Mapping
 
 import torch
 from torch import Tensor, nn
-from torch.ao.quantization import (
-    prepare,
-    convert,
-)
 from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.checkpoint import checkpoint
@@ -37,32 +33,6 @@ class VAE(nn.Module):
         self.decoder.to(memory_format=torch.channels_last)
         self.encoder.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
         self.decoder.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
-        self.encoder = prepare(
-            self.encoder,
-        )
-        self.decoder = prepare(self.decoder)
-
-    @torch.no_grad()
-    def save_quant(self, path: str) -> bytes:
-        obj = copy.deepcopy(self)
-        obj.eval().cpu()
-        for layer in self.encoder.layers + [self.encoder.in_conv]:
-            layer.forward = layer._org_forward_impl
-        for layer in obj.decoder.layers + [self.decoder.in_conv]:
-            layer.forward = layer._org_forward_impl
-        obj = convert(obj)
-        torch.save(obj, path)
-
-    @torch.no_grad()
-    def to_quant(self) -> bytes:
-        obj = copy.deepcopy(self)
-        obj.eval()
-        for layer in self.encoder.layers + [self.encoder.in_conv]:
-            layer.forward = layer._org_forward_impl
-        for layer in obj.decoder.layers + [self.decoder.in_conv]:
-            layer.forward = layer._org_forward_impl
-        obj = convert(obj, remove_qconfig=False)
-        return obj
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":

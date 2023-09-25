@@ -1,19 +1,10 @@
 from torch import Tensor, nn
-from torch.ao.quantization import (
-    QConfig,
-    MovingAverageMinMaxObserver,
-)
-import torch
 
 
 class QuantConv2d(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.conv = nn.Conv2d(*args, **kwargs)
-        self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
-            weight=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
-        )
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv(x)
@@ -24,10 +15,6 @@ class QuantConvTranspose2d(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.conv = nn.ConvTranspose2d(*args, **kwargs)
-        self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
-            weight=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
-        )
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv(x)
@@ -56,15 +43,13 @@ class _ConvNxN(nn.Module):
         )
         self.norm = nn.InstanceNorm2d(out_channels, eps=eps)
         self.act = nn.SiLU(True)
-        self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
-            weight=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
-        )
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv(x)
         x = self.norm(x)
+
         x = self.act(x)
+
         return x
 
 
@@ -88,4 +73,5 @@ class ResidualBlock(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.shortcut(x) + self.conv3(self.conv2(self.conv1(x)))
+        x = self.shortcut(x) + self.conv3(self.conv2(self.conv1(x)))
+        return x

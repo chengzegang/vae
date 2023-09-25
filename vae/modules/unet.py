@@ -88,7 +88,7 @@ class UNetDecoder(nn.Module):
         super().__init__()
         self.out_channels = out_channels
         channels = channels[::-1]
-        self.in_conv = nn.Conv2d(latent_size, channels[0], kernel_size=1)
+        self.in_conv = QuantConv2d(latent_size, channels[0], kernel_size=1)
         self.attn = AttentionLayer2d(
             channels[0],
             128,
@@ -98,7 +98,7 @@ class UNetDecoder(nn.Module):
         for i in range(len(channels) - 1):
             self.layers.append(ConvUp(channels[i], channels[i + 1], eps))
         self.out_norm = nn.InstanceNorm2d(channels[-1], eps=eps)
-        self.out = nn.Conv2d(channels[-1], out_channels, kernel_size=1)
+        self.out = QuantConv2d(channels[-1], out_channels, kernel_size=1)
 
     def forward(self, qz: Tensor) -> Tensor:
         x = self.in_conv(qz)
