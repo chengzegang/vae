@@ -9,3 +9,4 @@ torch==2.2.0.dev20230917+cu121
 torchvision==0.17.0.dev20230917+cu121
 typer==0.9.0
 webdataset==0.2.48
+xformers

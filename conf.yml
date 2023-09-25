@@ -4,7 +4,7 @@ lr: 1.0e-5
 weight_decay: 1.0e-5
 fused: true
 betas: [0.9, 0.96]
-batch_size: 32
+batch_size: 16
 total_epochs: 100
 num_workers: 8
 root: /mnt/f/datasets/imagenet
@@ -12,5 +12,5 @@ dataset: imagefolder
 ema_lr: 1.0e-5
 model:
   in_channels: 3
-  channels: [64, 128, 256, 512, 1024]
+  channels: [128, 256, 512, 1024]
   latent_size: 64

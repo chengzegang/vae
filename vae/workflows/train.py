@@ -46,17 +46,25 @@ class Train:
                 )
                 self.model.train()
                 with torch.autocast("cuda", self.env.dtype):
-                    loss = self.model.train_step(
+                    g_loss = self.model.G_step(
                         batch, kl_weights[self.step % self.kl_anneal_steps]
                     )
-                self.optimizer.zero_grad()
-                scaler.scale(loss).backward()
+                scaler.scale(g_loss).backward()
+                # self.model.D.zero_grad()
+                #
+                # with torch.autocast("cuda", self.env.dtype):
+                #    with torch.no_grad():
+                #        fake_batch = self.model(batch)
+                #    d_loss = self.model.D_step(batch, fake_batch)
+                # scaler.scale(d_loss).backward()
+
                 scaler.step(self.optimizer)
-                self.ppf.step()
+                # self.ppf.step()
                 scaler.update()
+                self.model.zero_grad()
 
                 print(
-                    f"Epoch {self.epoch} Step {self.step} Loss {loss.item():.6f}",
+                    f"Epoch {self.epoch} Step {self.step} G Loss {g_loss.item():.6f} ",  # D Loss {d_loss.item():.6f}",
                     end="\r",
                 )
                 if self.step % self.save_every == 0:
@@ -72,6 +80,7 @@ class Train:
         org_state = OrderedDict()
         for k, v in state.items():
             org_state[k.replace("_org_mod.", "")] = v
+        org_state["step"] = self.step
         torch.save(org_state, os.path.join(self.env.log_dir, "model.pt"))
 
     def load(self):
@@ -82,6 +91,7 @@ class Train:
             for k, v in state.items():
                 org_state[k.replace("_org_mod.", "")] = v
             self.model.load_state_dict(org_state, strict=False)
+            self.step = state["step"]
         except Exception as e:
             print(e)
             print("No model loaded")
