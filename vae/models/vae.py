@@ -26,6 +26,11 @@ class VAE(nn.Module):
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
         self.decoder.to(memory_format=torch.channels_last)
+        # self.encoder.requires_grad_(False)
+        # self.decoder.requires_grad_(False)
+        # self.decoder.layers[-1].requires_grad_(True)
+        # self.decoder.out_norm.requires_grad_(True)
+        # self.decoder.out.requires_grad_(True)
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":

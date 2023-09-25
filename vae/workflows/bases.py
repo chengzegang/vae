@@ -90,3 +90,34 @@ class EMA:
             return
         self.avg_model.update_parameters(self.model)
         self.ema_sched.step()
+
+
+class PerParameterFinetuning(object):
+    def __init__(self, module: nn.Module, steps_per_layer: int = 10):
+        self.module = module
+        self.steps_per_layer = steps_per_layer
+        self._step = 0
+        self._params = list(self.module.parameters())
+        self._last_p_idx = 0
+        self._changed = True
+
+    @property
+    def _p_idx(self):
+        return self._step // self.steps_per_layer % len(self._params)
+
+    def step(self, steps: int | None = None):
+        if steps is None:
+            self._step += 1
+        else:
+            self._step += steps
+        if self._p_idx != self._last_p_idx:
+            self._changed = True
+        self.set_params()
+
+    def set_params(self):
+        if self._changed:
+            for p in self._params:
+                p.requires_grad_(False)
+            self._params[self._p_idx].requires_grad_(True)
+            self._changed = False
+            self._last_p_idx = self._p_idx

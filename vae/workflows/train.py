@@ -1,12 +1,12 @@
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
 import os
-from .bases import EMA, Environment, Optimizer
+from .bases import EMA, Environment, Optimizer, PerParameterFinetuning as PPF
 from ..models.vae import VAE
 import matplotlib.pyplot as plt
 import torchvision.transforms.v2.functional as TF
@@ -26,6 +26,11 @@ class Train:
     kl_weight_max: float = 1e-8
     kl_anneal_steps: int = 20000
     grad_norm_reg: float = 1e-4
+    ppf_steps: int = 10
+    ppf: PPF = field(init=False)
+
+    def __post_init__(self):
+        self.ppf = PPF(self.model, self.ppf_steps)
 
     def start(self) -> None:
         scaler = GradScaler()
@@ -47,6 +52,7 @@ class Train:
                 self.optimizer.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.step(self.optimizer)
+                self.ppf.step()
                 scaler.update()
 
                 print(
