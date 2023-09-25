@@ -65,6 +65,7 @@ class Train:
                         self.show(batch, self.model.eval_step(batch))
                 self.step += 1
 
+    @torch.no_grad()
     def save(self):
         self.model.eval()
         state = self.model.state_dict()
@@ -74,6 +75,7 @@ class Train:
         org_state["step"] = self.step
         torch.save(org_state, os.path.join(self.env.log_dir, "model.pt"))
 
+    @torch.no_grad()
     def load(self):
         self.model.eval()
         try:
@@ -87,6 +89,7 @@ class Train:
             print(e)
             print("No model loaded")
 
+    @torch.no_grad()
     def show(self, input: Tensor, output: Tensor):
         fig = plt.figure()
         ax = fig.add_subplot(1, 2, 1)
