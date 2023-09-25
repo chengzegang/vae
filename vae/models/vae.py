@@ -1,5 +1,6 @@
 import copy
 from functools import partial
+from typing import Any, Mapping
 
 import torch
 from torch import Tensor, nn

@@ -15,7 +15,6 @@ class ConvDown(nn.Module):
         super().__init__()
         self.res = ResidualBlock(in_channels, out_channels, eps)
         self.down = QuantConv2d(out_channels, out_channels, kernel_size=2, stride=2)
-        self.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.res(x)
@@ -38,7 +37,6 @@ class ConvUp(nn.Module):
             stride=2,
         )
         self.res = ResidualBlock(out_channels, out_channels, eps)
-        self.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.up(x)
@@ -52,7 +50,7 @@ class UNetEncoder(nn.Module):
         in_channels: int,
         channels: List[int],
         latent_size: int,
-        eps: float = 1e-5,
+        eps: float = 1e-4,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -84,8 +82,7 @@ class UNetDecoder(nn.Module):
         out_channels: int,
         channels: List[int],
         latent_size: int,
-        dropout: float = 0.0,
-        eps: float = 1e-5,
+        eps: float = 1e-4,
     ):
         super().__init__()
         self.out_channels = out_channels

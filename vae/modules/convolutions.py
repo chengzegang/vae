@@ -52,7 +52,7 @@ class _ConvNxN(nn.Module):
         self.conv = nn.Conv2d(
             in_channels, out_channels, kernel_size, stride, padding, bias=False
         )
-        self.norm = nn.InstanceNorm2d(out_channels)
+        self.norm = nn.InstanceNorm2d(out_channels, eps=eps)
         self.act = nn.SiLU(True)
         self.qconfig = QConfig(
             activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
