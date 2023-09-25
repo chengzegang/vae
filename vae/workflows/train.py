@@ -46,20 +46,11 @@ class Train:
                 )
                 self.model.train()
                 with torch.autocast("cuda", self.env.dtype):
-                    g_loss = self.model.G_step(
+                    g_loss = self.model.train_step(
                         batch, kl_weights[self.step % self.kl_anneal_steps]
                     )
                 scaler.scale(g_loss).backward()
-                # self.model.D.zero_grad()
-                #
-                # with torch.autocast("cuda", self.env.dtype):
-                #    with torch.no_grad():
-                #        fake_batch = self.model(batch)
-                #    d_loss = self.model.D_step(batch, fake_batch)
-                # scaler.scale(d_loss).backward()
-
                 scaler.step(self.optimizer)
-                # self.ppf.step()
                 scaler.update()
                 self.model.zero_grad()
 

@@ -21,18 +21,12 @@ class VAE(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        # self.D = Discriminator(
-        #    encoder.in_channels, [64, 128, 256, 512, 1024, 1024, 1024], 1
-        # )
         for layer in self.encoder.layers:
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         for layer in self.decoder.layers:
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
-        # for layer in self.D.layers:
-        #    layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
         self.decoder.to(memory_format=torch.channels_last)
-        # self.D.to(memory_format=torch.channels_last)
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":
@@ -67,24 +61,10 @@ class VAE(nn.Module):
     def sample(self, z: Gaussian) -> Tensor:
         return self.decode(z.sample())
 
-    def D_step(self, x: Tensor, xh: Tensor) -> Tensor:
-        self.D.requires_grad_(True)
-        fake_pred = self.D(xh)
-        real_pred = self.D(x)
-        loss = F.binary_cross_entropy_with_logits(
-            fake_pred, torch.zeros_like(fake_pred)
-        ) + F.binary_cross_entropy_with_logits(real_pred, torch.ones_like(real_pred))
-        return loss
-
-    def G_step(self, x: Tensor, kl_weight: float = 1.0) -> Tensor:
-        # self.D.requires_grad_(False)
+    def train_step(self, x: Tensor, kl_weight: float = 1.0) -> Tensor:
         z = self.encode(x)
         xh = self.decode(z.sample())
         loss = F.l1_loss(xh, x) + z.kl_loss() * kl_weight
-        # fake_pred = self.D(xh)
-        # loss = loss + 1e-3 * F.binary_cross_entropy_with_logits(
-        #    fake_pred, torch.ones_like(fake_pred)
-        # )
         return loss
 
     @torch.no_grad()
