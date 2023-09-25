@@ -4,25 +4,6 @@ import torch
 from torch import nn, Tensor
 
 
-class MLP(nn.Module):
-    def __init__(
-        self,
-        in_features: int,
-        hidden_features: int,
-        out_features: int | None = None,
-        dropout: float = 0.0,
-    ):
-        super().__init__()
-        out_features = out_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = nn.SiLU(True)
-        self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(hidden_features, out_features)
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self.fc2(self.dropout(self.act(self.fc1(x))))
-
-
 class AttentionLayer(nn.Module):
     def __init__(self, model_dim: int, head_size: int):
         super().__init__()

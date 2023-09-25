@@ -2,10 +2,14 @@
 #
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import List, Optional
 
 from torch import Tensor, nn
 from xformers.ops import memory_efficient_attention
+from torch.ao.quantization import (
+    QConfig,
+    MovingAverageMinMaxObserver,
+)
+import torch
 
 
 class MultiheadAttention(nn.Module):
@@ -19,6 +23,15 @@ class MultiheadAttention(nn.Module):
         self.head_size = head_size
         self.norm = nn.LayerNorm(embed_dim)
         self.in_proj = nn.Linear(embed_dim * 3, embed_dim * 3)
+
+        self.qconfig = QConfig(
+            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+                dtype=torch.qint8
+            ),
+            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+                dtype=torch.qint8
+            ),
+        )
 
     def _split_heads(self, x: Tensor) -> Tensor:
         return x.view(x.shape[0], x.shape[1], self.embed_dim // self.head_size, -1)

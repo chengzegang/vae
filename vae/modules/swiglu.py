@@ -1,9 +1,10 @@
-from typing import List, Optional
+from typing import Optional
 
+import torch
 from torch import Tensor, nn
-
+from torch.ao.quantization import (MovingAverageMinMaxObserver,
+                                   QConfig)
 from xformers.ops.swiglu_op import swiglu
-import torch.nn.functional as F
 
 
 class SwiGLU(nn.Module):
@@ -38,6 +39,15 @@ class SwiGLU(nn.Module):
         self.hidden_features = hidden_features
         self.out_features = out_features
         self.in_features = in_features
+
+        self.qconfig = QConfig(
+            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+                dtype=torch.qint8
+            ),
+            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+                dtype=torch.qint8
+            ),
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         """Computes :attr:`swiglu` with the module's weights

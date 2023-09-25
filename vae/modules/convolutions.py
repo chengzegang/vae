@@ -1,4 +1,36 @@
 from torch import Tensor, nn
+from torch.ao.quantization import (
+    QConfig,
+    MovingAveragePerChannelMinMaxObserver,
+    MovingAverageMinMaxObserver,
+)
+import torch
+
+
+class QuantConv2d(nn.Conv2d):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.qconfig = QConfig(
+            activation=MovingAveragePerChannelMinMaxObserver(
+                ch_axis=1, dtype=torch.qint8
+            ).with_args(dtype=torch.qint8),
+            weight=MovingAveragePerChannelMinMaxObserver(
+                ch_axis=1, dtype=torch.qint8
+            ).with_args(dtype=torch.qint8),
+        )
+
+
+class QuantConvTranspose2d(nn.ConvTranspose2d):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.qconfig = QConfig(
+            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+                dtype=torch.qint8
+            ),
+            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+                dtype=torch.qint8
+            ),
+        )
 
 
 class _ConvNxN(nn.Module):
@@ -23,6 +55,14 @@ class _ConvNxN(nn.Module):
         )
         self.norm = nn.InstanceNorm2d(out_channels)
         self.act = nn.SiLU(True)
+        self.qconfig = QConfig(
+            activation=MovingAveragePerChannelMinMaxObserver(
+                ch_axis=1, dtype=torch.qint8
+            ).with_args(dtype=torch.qint8),
+            weight=MovingAveragePerChannelMinMaxObserver(
+                ch_axis=1, dtype=torch.qint8
+            ).with_args(dtype=torch.qint8),
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv(x)
@@ -43,11 +83,11 @@ class ResidualBlock(nn.Module):
         super().__init__()
         self.conv1 = Conv3x3(in_channels, out_channels, eps=eps)
         self.conv2 = Conv3x3(out_channels, out_channels, eps=eps)
-        self.conv3 = nn.Conv2d(out_channels, out_channels, 1, bias=False)
+        self.conv3 = QuantConv2d(out_channels, out_channels, 1, bias=False)
         self.shortcut = (
             nn.Identity()
             if in_channels == out_channels
-            else nn.Conv2d(in_channels, out_channels, 1, bias=False)
+            else QuantConv2d(in_channels, out_channels, 1, bias=False)
         )
 
     def forward(self, x: Tensor) -> Tensor:

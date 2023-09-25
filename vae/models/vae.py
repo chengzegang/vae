@@ -1,15 +1,19 @@
 from functools import partial
-from typing import List
 
 import torch
 from torch import Tensor, nn
+from torch.ao.quantization import (
+    MovingAveragePerChannelMinMaxObserver,
+    QConfig,
+    QConfigMapping,
+    prepare,
+)
 from torch.nn import functional as F
-
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.checkpoint import checkpoint
 
 from ..data.gaussian import Gaussian
-from ..modules import UNetDecoder, UNetEncoder, Discriminator
-from torch.utils.checkpoint import checkpoint
-from torch.nn.parallel import DistributedDataParallel as DDP
+from ..modules import UNetDecoder, UNetEncoder
 
 
 class VAE(nn.Module):
@@ -27,6 +31,23 @@ class VAE(nn.Module):
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
         self.decoder.to(memory_format=torch.channels_last)
+
+        self.encoder = prepare(
+            self.encoder,
+        )
+        self.decoder = prepare(self.decoder)
+
+    @classmethod
+    def quant_from_float(cls, model: "VAE") -> "VAE":
+        qconfig = QConfig(
+            activation=MovingAveragePerChannelMinMaxObserver.with_args(
+                dtype=torch.qint8
+            ),
+            weight=MovingAveragePerChannelMinMaxObserver.with_args(dtype=torch.qint8),
+        )
+
+        QConfigMapping().set_global(qconfig)
+        return cls(prepare(model.encoder), prepare(model.decoder))
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":

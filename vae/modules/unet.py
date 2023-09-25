@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from torch import Tensor, nn
 from .attention import AttentionLayer2d
-from .convolutions import ResidualBlock
+from .convolutions import ResidualBlock, QuantConvTranspose2d, QuantConv2d
 
 
 class ConvDown(nn.Module):
@@ -14,7 +14,7 @@ class ConvDown(nn.Module):
     ):
         super().__init__()
         self.res = ResidualBlock(in_channels, out_channels, eps)
-        self.down = nn.Conv2d(out_channels, out_channels, kernel_size=2, stride=2)
+        self.down = QuantConv2d(out_channels, out_channels, kernel_size=2, stride=2)
         self.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
 
     def forward(self, x: Tensor) -> Tensor:
@@ -31,7 +31,7 @@ class ConvUp(nn.Module):
         eps: float = 1e-4,
     ):
         super().__init__()
-        self.up = nn.ConvTranspose2d(
+        self.up = QuantConvTranspose2d(
             in_channels,
             out_channels,
             kernel_size=2,
@@ -59,11 +59,11 @@ class Discriminator(nn.Module):
         self.channels = channels
         self.latent_size = latent_size
         self.layers = nn.ModuleList()
-        self.in_conv = nn.Conv2d(in_channels, channels[0], kernel_size=1)
+        self.in_conv = QuantConv2d(in_channels, channels[0], kernel_size=1)
         for i in range(len(channels) - 1):
             self.layers.append(ConvDown(channels[i], channels[i + 1], eps))
         self.layers.append(ResidualBlock(channels[-1], channels[-1], eps))
-        self.out_conv = nn.Conv2d(channels[-1], latent_size, kernel_size=1)
+        self.out_conv = QuantConv2d(channels[-1], latent_size, kernel_size=1)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.in_conv(x)
@@ -86,7 +86,7 @@ class UNetEncoder(nn.Module):
         self.channels = channels
         self.latent_size = latent_size
         self.layers = nn.ModuleList()
-        self.in_conv = nn.Conv2d(in_channels, channels[0], kernel_size=1)
+        self.in_conv = QuantConv2d(in_channels, channels[0], kernel_size=1)
         for i in range(len(channels) - 1):
             self.layers.append(ConvDown(channels[i], channels[i + 1], eps))
         self.layers.append(ResidualBlock(channels[-1], channels[-1], eps))
@@ -94,7 +94,7 @@ class UNetEncoder(nn.Module):
             channels[-1],
             128,
         )
-        self.out_conv = nn.Conv2d(channels[-1], latent_size, kernel_size=1)
+        self.out_conv = QuantConv2d(channels[-1], latent_size, kernel_size=1)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.in_conv(x)
