@@ -42,8 +42,8 @@ class VAE(nn.Module):
 
     @torch.no_grad()
     def save_quant(self, path: str) -> bytes:
-        self.eval()
         obj = copy.deepcopy(self)
+        obj.eval()
         for layer in obj.encoder.layers:
             layer.forward = layer._org_forward_impl
         for layer in obj.decoder.layers:
