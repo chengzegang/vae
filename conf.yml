@@ -1,6 +1,6 @@
 device: cuda
 dtype: float16
-lr: 1.0e-4
+lr: 1.0e-5
 weight_decay: 1.0e-5
 fused: true
 betas: [0.9, 0.96]
