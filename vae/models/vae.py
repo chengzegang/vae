@@ -26,22 +26,6 @@ class VAE(nn.Module):
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
         self.decoder.to(memory_format=torch.channels_last)
-        self.register_full_backward_hook(self._gradient_regularization)
-
-    @staticmethod
-    def _gradient_regularization(
-        module: nn.Module, grad_input: Tensor, grad_output: Tensor
-    ) -> tuple[Tensor] or None:
-        grad_input = tuple(
-            gin
-            + 1e-4
-            * torch.autograd.grad(
-                input=module.parameters(),
-                outputs=gout.norm(dim=-1).mean(),
-                create_graph=True,
-            )[0]
-            for gin, gout in zip(grad_input, grad_output)
-        )
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":
