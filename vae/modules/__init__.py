@@ -1,1 +1,1 @@
-from .unet import UNetEncoder, UNetDecoder, Discriminator
+from .unet import UNetEncoder, UNetDecoder

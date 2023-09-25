@@ -1,12 +1,11 @@
+import copy
 from functools import partial
 
 import torch
 from torch import Tensor, nn
 from torch.ao.quantization import (
-    MovingAveragePerChannelMinMaxObserver,
-    QConfig,
-    QConfigMapping,
     prepare,
+    convert,
 )
 from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -14,6 +13,7 @@ from torch.utils.checkpoint import checkpoint
 
 from ..data.gaussian import Gaussian
 from ..modules import UNetDecoder, UNetEncoder
+import io
 
 
 class VAE(nn.Module):
@@ -26,28 +26,30 @@ class VAE(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         for layer in self.encoder.layers:
+            layer._org_forward_impl = layer.forward
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         for layer in self.decoder.layers:
+            layer._org_forward_impl = layer.forward
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
         self.decoder.to(memory_format=torch.channels_last)
-
+        self.encoder.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
+        self.decoder.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
         self.encoder = prepare(
             self.encoder,
         )
         self.decoder = prepare(self.decoder)
 
-    @classmethod
-    def quant_from_float(cls, model: "VAE") -> "VAE":
-        qconfig = QConfig(
-            activation=MovingAveragePerChannelMinMaxObserver.with_args(
-                dtype=torch.qint8
-            ),
-            weight=MovingAveragePerChannelMinMaxObserver.with_args(dtype=torch.qint8),
-        )
-
-        QConfigMapping().set_global(qconfig)
-        return cls(prepare(model.encoder), prepare(model.decoder))
+    @torch.no_grad()
+    def save_quant(self, path: str) -> bytes:
+        self.eval()
+        obj = copy.deepcopy(self)
+        for layer in obj.encoder.layers:
+            layer.forward = layer._org_forward_impl
+        for layer in obj.decoder.layers:
+            layer.forward = layer._org_forward_impl
+        obj = convert(obj)
+        torch.save(obj, path)
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":
@@ -69,25 +71,31 @@ class VAE(nn.Module):
             )
         return obj
 
+    @torch.jit.export
     def encode(self, x: Tensor) -> Gaussian:
         z = self.encoder(x)
         return Gaussian.from_latent(z)
 
+    @torch.jit.export
     def decode(self, z: Tensor) -> Tensor:
         return self.decoder(z)
 
+    @torch.jit.export
     def forward(self, x: Tensor) -> Tensor:
         return self.sample(self.encode(x))
 
+    @torch.jit.export
     def sample(self, z: Gaussian) -> Tensor:
         return self.decode(z.sample())
 
+    @torch.jit.export
     def train_step(self, x: Tensor, kl_weight: float = 1.0) -> Tensor:
         z = self.encode(x)
         xh = self.decode(z.sample())
         loss = F.l1_loss(xh, x) + z.kl_loss() * kl_weight
         return loss
 
+    @torch.jit.export
     @torch.no_grad()
     def eval_step(self, x: Tensor) -> Tensor:
         z = self.encode(x)

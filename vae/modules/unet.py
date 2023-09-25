@@ -46,33 +46,6 @@ class ConvUp(nn.Module):
         return x
 
 
-class Discriminator(nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        channels: List[int],
-        latent_size: int,
-        eps: float = 1e-5,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.channels = channels
-        self.latent_size = latent_size
-        self.layers = nn.ModuleList()
-        self.in_conv = QuantConv2d(in_channels, channels[0], kernel_size=1)
-        for i in range(len(channels) - 1):
-            self.layers.append(ConvDown(channels[i], channels[i + 1], eps))
-        self.layers.append(ResidualBlock(channels[-1], channels[-1], eps))
-        self.out_conv = QuantConv2d(channels[-1], latent_size, kernel_size=1)
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.in_conv(x)
-        for layer in self.layers:
-            x = layer(x)
-        z = self.out_conv(x)
-        return z
-
-
 class UNetEncoder(nn.Module):
     def __init__(
         self,

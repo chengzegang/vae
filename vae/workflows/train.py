@@ -74,6 +74,7 @@ class Train:
             org_state[k.replace("_org_mod.", "")] = v
         org_state["step"] = self.step
         torch.save(org_state, os.path.join(self.env.log_dir, "model.pt"))
+        self.model.save_quant(os.path.join(self.env.log_dir, "model.quant.bin"))
 
     @torch.no_grad()
     def load(self):

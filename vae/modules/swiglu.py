@@ -2,8 +2,7 @@ from typing import Optional
 
 import torch
 from torch import Tensor, nn
-from torch.ao.quantization import (MovingAverageMinMaxObserver,
-                                   QConfig)
+from torch.ao.quantization import MovingAverageMinMaxObserver, QConfig
 from xformers.ops.swiglu_op import swiglu
 
 

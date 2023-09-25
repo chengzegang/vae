@@ -3,13 +3,14 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import Optional, Union
 from torch import Tensor, nn
-from xformers.ops import memory_efficient_attention
 from torch.ao.quantization import (
     QConfig,
     MovingAverageMinMaxObserver,
 )
 import torch
+from xformers.ops import memory_efficient_attention
 
 
 class MultiheadAttention(nn.Module):
@@ -39,12 +40,16 @@ class MultiheadAttention(nn.Module):
     def _merge_heads(self, x: Tensor) -> Tensor:
         return x.view(x.shape[0], x.shape[1], -1)
 
+    @torch.jit.ignore
+    def flash_attention(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+        return memory_efficient_attention(q, k, v)
+
     def forward(self, x: Tensor) -> Tensor:
         x = self.norm(x)
         x = self.in_proj(x.repeat(1, 1, 3))
         qkv = self._split_heads(x)
         q, k, v = qkv.chunk(3, dim=-1)
-        a_val = memory_efficient_attention(
+        a_val = self.flash_attention(
             q,
             k,
             v,
