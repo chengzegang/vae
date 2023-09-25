@@ -3,6 +3,7 @@ from typing import List, Optional
 from torch import Tensor, nn
 from .attention import AttentionLayer2d
 from .convolutions import ResidualBlock, QuantConvTranspose2d, QuantConv2d
+import torch
 
 
 class ConvDown(nn.Module):

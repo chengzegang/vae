@@ -22,9 +22,9 @@ class Train:
     total_epochs: int = 100
     step: int = 0
     epoch: int = 0
-    kl_weight_min: float = 1e-4
-    kl_weight_max: float = 1e-8
-    kl_anneal_steps: int = 20000
+    kl_weight_min: float = 1e-3
+    kl_weight_max: float = 1e-6
+    kl_anneal_steps: int = 10000
     grad_norm_reg: float = 1e-4
     ppf_steps: int = 10
     ppf: PPF = field(init=False)
@@ -46,16 +46,16 @@ class Train:
                 )
                 self.model.train()
                 with torch.autocast("cuda", self.env.dtype):
-                    g_loss = self.model.train_step(
+                    loss = self.model.train_step(
                         batch, kl_weights[self.step % self.kl_anneal_steps]
                     )
-                scaler.scale(g_loss).backward()
+                scaler.scale(loss).backward()
                 scaler.step(self.optimizer)
                 scaler.update()
                 self.model.zero_grad()
 
                 print(
-                    f"Epoch {self.epoch} Step {self.step} G Loss {g_loss.item():.6f} ",  # D Loss {d_loss.item():.6f}",
+                    f"Epoch {self.epoch} Step {self.step} Loss {loss.item():.6f} ",
                     end="\r",
                 )
                 if self.step % self.save_every == 0:

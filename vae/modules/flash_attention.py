@@ -26,10 +26,10 @@ class MultiheadAttention(nn.Module):
         self.in_proj = nn.Linear(embed_dim * 3, embed_dim * 3)
 
         self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+            activation=MovingAverageMinMaxObserver.with_args(
                 dtype=torch.qint8
             ),
-            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+            weight=MovingAverageMinMaxObserver.with_args(
                 dtype=torch.qint8
             ),
         )
@@ -40,16 +40,36 @@ class MultiheadAttention(nn.Module):
     def _merge_heads(self, x: Tensor) -> Tensor:
         return x.view(x.shape[0], x.shape[1], -1)
 
+    def _attention(
+        self,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+    ) -> Tensor:
+        if torch.jit.is_scripting() or torch.jit.is_tracing() or q.device.type == "cpu":
+            return self._torch_attention(q, k, v)
+        else:
+            return self._flash_attention(q, k, v)
+
     @torch.jit.ignore
-    def flash_attention(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+    def _flash_attention(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
         return memory_efficient_attention(q, k, v)
+
+    def _torch_attention(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+        return (
+            torch.nn.functional.scaled_dot_product_attention(
+                q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+            )
+            .transpose(1, 2)
+            .contiguous()
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.norm(x)
         x = self.in_proj(x.repeat(1, 1, 3))
         qkv = self._split_heads(x)
         q, k, v = qkv.chunk(3, dim=-1)
-        a_val = self.flash_attention(
+        a_val = self._attention(
             q,
             k,
             v,

@@ -40,10 +40,10 @@ class SwiGLU(nn.Module):
         self.in_features = in_features
 
         self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+            activation=MovingAverageMinMaxObserver.with_args(
                 dtype=torch.qint8
             ),
-            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
+            weight=MovingAverageMinMaxObserver.with_args(
                 dtype=torch.qint8
             ),
         )

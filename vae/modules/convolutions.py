@@ -6,30 +6,32 @@ from torch.ao.quantization import (
 import torch
 
 
-class QuantConv2d(nn.Conv2d):
+class QuantConv2d(nn.Module):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__()
+        self.conv = nn.Conv2d(*args, **kwargs)
         self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
-                dtype=torch.qint8
-            ),
-            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
-                dtype=torch.qint8
-            ),
+            activation=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
+            weight=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
         )
 
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.conv(x)
+        return x
 
-class QuantConvTranspose2d(nn.ConvTranspose2d):
+
+class QuantConvTranspose2d(nn.Module):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(*args, **kwargs)
         self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
-                dtype=torch.qint8
-            ),
-            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
-                dtype=torch.qint8
-            ),
+            activation=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
+            weight=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
         )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.conv(x)
+        return x
 
 
 class _ConvNxN(nn.Module):
@@ -55,12 +57,8 @@ class _ConvNxN(nn.Module):
         self.norm = nn.InstanceNorm2d(out_channels, eps=eps)
         self.act = nn.SiLU(True)
         self.qconfig = QConfig(
-            activation=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
-                dtype=torch.qint8
-            ),
-            weight=MovingAverageMinMaxObserver(dtype=torch.qint8).with_args(
-                dtype=torch.qint8
-            ),
+            activation=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
+            weight=MovingAverageMinMaxObserver.with_args(dtype=torch.qint8),
         )
 
     def forward(self, x: Tensor) -> Tensor:

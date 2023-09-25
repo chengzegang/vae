@@ -26,10 +26,11 @@ class VAE(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        for layer in self.encoder.layers:
+
+        for layer in self.encoder.layers + [self.encoder.in_conv]:
             layer._org_forward_impl = layer.forward
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
-        for layer in self.decoder.layers:
+        for layer in self.decoder.layers + [self.decoder.in_conv]:
             layer._org_forward_impl = layer.forward
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
@@ -44,13 +45,24 @@ class VAE(nn.Module):
     @torch.no_grad()
     def save_quant(self, path: str) -> bytes:
         obj = copy.deepcopy(self)
-        obj.eval()
-        for layer in obj.encoder.layers:
+        obj.eval().cpu()
+        for layer in self.encoder.layers + [self.encoder.in_conv]:
             layer.forward = layer._org_forward_impl
-        for layer in obj.decoder.layers:
+        for layer in obj.decoder.layers + [self.decoder.in_conv]:
             layer.forward = layer._org_forward_impl
         obj = convert(obj)
         torch.save(obj, path)
+
+    @torch.no_grad()
+    def to_quant(self) -> bytes:
+        obj = copy.deepcopy(self)
+        obj.eval()
+        for layer in self.encoder.layers + [self.encoder.in_conv]:
+            layer.forward = layer._org_forward_impl
+        for layer in obj.decoder.layers + [self.decoder.in_conv]:
+            layer.forward = layer._org_forward_impl
+        obj = convert(obj, remove_qconfig=False)
+        return obj
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":
