@@ -4,13 +4,15 @@ from typing import Any, Mapping
 
 import torch
 from torch import Tensor, nn
+from torch.ao.quantization import prepare
+from torch.ao.quantization.quantize_fx import convert_fx
 from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.checkpoint import checkpoint
 
+from .. import modules
 from ..data.gaussian import Gaussian
 from ..modules import UNetDecoder, UNetEncoder
-import io
 
 
 class VAE(nn.Module):
@@ -31,8 +33,21 @@ class VAE(nn.Module):
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
         self.encoder.to(memory_format=torch.channels_last)
         self.decoder.to(memory_format=torch.channels_last)
-        self.encoder.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
-        self.decoder.compile(fullgraph=True, dynamic=False, backend="aot_ts_nvfuser")
+
+    def convert_quant(self):
+        def convert_submodules(module: nn.Module):
+            if isinstance(
+                module,
+                (
+                    modules.QuantMultiheadAttention,
+                    modules.QuantConv2d,
+                    modules.QuantConvTranspose2d,
+                    modules.QuantSwiGLU,
+                ),
+            ):
+                module.submodule = convert_fx(module.submodule, _remove_qconfig=False)
+
+        self.apply(convert_submodules)
 
     @classmethod
     def from_meta(cls, meta: dict) -> "VAE":

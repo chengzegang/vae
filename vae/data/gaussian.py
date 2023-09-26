@@ -17,10 +17,10 @@ class Gaussian:
     def from_latent(
         cls, z: Tensor, min_logvar: float = -15.0, max_logvar: float = 15.0
     ) -> "Gaussian":
-        qz = z.clone()
-        qz[:, z.shape[1] // 2 :] = cls.clamp(
-            z[:, z.shape[1] // 2 :], min_logvar, max_logvar
-        )
+        qz = z.clone().detach()
+        qmean = qz[:, : z.shape[1] // 2]
+        qvar = cls.clamp(z[:, z.shape[1] // 2 :], min_logvar, max_logvar)
+        qz = torch.cat([qmean, qvar], dim=1)
         return cls(
             z,
             qz,
@@ -28,7 +28,7 @@ class Gaussian:
             qz[:, z.shape[1] // 2 :],
             min_logvar=min_logvar,
             max_logvar=max_logvar,
-            batch_size=[z.shape[0]],
+            batch_size=(z.shape[0],),
         )
 
     @staticmethod

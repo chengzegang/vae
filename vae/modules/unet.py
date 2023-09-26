@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from torch import Tensor, nn
-from .attention import AttentionLayer2d
+from .attention import AttentionLayer2d, QuantAttentionLayer2d
 from .convolutions import ResidualBlock, QuantConvTranspose2d, QuantConv2d
 import torch
 
@@ -62,7 +62,7 @@ class UNetEncoder(nn.Module):
         for i in range(len(channels) - 1):
             self.layers.append(ConvDown(channels[i], channels[i + 1], eps))
         self.layers.append(ResidualBlock(channels[-1], channels[-1], eps))
-        self.attn = AttentionLayer2d(
+        self.attn = QuantAttentionLayer2d(
             channels[-1],
             128,
         )
@@ -89,7 +89,7 @@ class UNetDecoder(nn.Module):
         self.out_channels = out_channels
         channels = channels[::-1]
         self.in_conv = QuantConv2d(latent_size, channels[0], kernel_size=1)
-        self.attn = AttentionLayer2d(
+        self.attn = QuantAttentionLayer2d(
             channels[0],
             128,
         )

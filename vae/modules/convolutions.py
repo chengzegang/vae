@@ -1,23 +1,146 @@
+from typing import Tuple
 from torch import Tensor, nn
+
+import torch
+from torch.ao.quantization.quantize_fx import prepare_fx
+from .quant_module import qconfig_mapping
+
+
+class _Conv2d(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = "zeros",
+    ):
+        super().__init__()
+        self._impl = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+            padding_mode,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self._impl(x)
+        return x
+
+
+class _ConvTranspose2d(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        output_padding: int = 0,
+        groups: int = 1,
+        bias: bool = True,
+        dilation: int = 1,
+        padding_mode: str = "zeros",
+    ):
+        super().__init__()
+        self._impl = nn.ConvTranspose2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            output_padding,
+            groups,
+            bias,
+            dilation,
+            padding_mode,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self._impl(x)
+        return x
 
 
 class QuantConv2d(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = "zeros",
+    ):
         super().__init__()
-        self.conv = nn.Conv2d(*args, **kwargs)
+        self.submodule = _Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+            padding_mode,
+        )
+        self.submodule = prepare_fx(
+            self.submodule,
+            qconfig_mapping,
+            torch.randn(1, in_channels, 32, 32),
+        )
 
     def forward(self, x: Tensor) -> Tensor:
-        x = self.conv(x)
+        x = self.submodule(x)
         return x
 
 
 class QuantConvTranspose2d(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        output_padding: int = 0,
+        groups: int = 1,
+        bias: bool = True,
+        dilation: int = 1,
+        padding_mode: str = "zeros",
+    ):
         super().__init__()
-        self.conv = nn.ConvTranspose2d(*args, **kwargs)
+        self.submodule = _ConvTranspose2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            output_padding,
+            groups,
+            bias,
+            dilation,
+            padding_mode,
+        )
+        self.submodule = prepare_fx(
+            self.submodule,
+            qconfig_mapping,
+            torch.randn(1, in_channels, 32, 32),
+        )
 
     def forward(self, x: Tensor) -> Tensor:
-        x = self.conv(x)
+        x = self.submodule(x)
         return x
 
 
@@ -53,7 +176,39 @@ class _ConvNxN(nn.Module):
         return x
 
 
+class _QuantConvNxN(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        eps: float = 1e-5,
+    ):
+        super().__init__()
+        self.submodule = _ConvNxN(
+            in_channels, out_channels, kernel_size, stride, padding, eps
+        )
+        self.submodule = prepare_fx(
+            self.submodule,
+            qconfig_mapping,
+            torch.randn(1, in_channels, 32, 32),
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.submodule(x)
+        return x
+
+
 class Conv3x3(_ConvNxN):
+    def __init__(
+        self, in_channels: int, out_channels: int, stride: int = 1, eps: float = 1e-5
+    ):
+        super().__init__(in_channels, out_channels, 3, stride, 1, eps)
+
+
+class QuantConv3x3(_QuantConvNxN):
     def __init__(
         self, in_channels: int, out_channels: int, stride: int = 1, eps: float = 1e-5
     ):
@@ -63,8 +218,8 @@ class Conv3x3(_ConvNxN):
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, eps: float = 1e-5):
         super().__init__()
-        self.conv1 = Conv3x3(in_channels, out_channels, eps=eps)
-        self.conv2 = Conv3x3(out_channels, out_channels, eps=eps)
+        self.conv1 = QuantConv3x3(in_channels, out_channels, eps=eps)
+        self.conv2 = QuantConv3x3(out_channels, out_channels, eps=eps)
         self.conv3 = QuantConv2d(out_channels, out_channels, 1, bias=False)
         self.shortcut = (
             nn.Identity()
