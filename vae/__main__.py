@@ -1,12 +1,14 @@
 import typer
-from .factory import train_from_conf
+from .workflows import Train
+import yaml
 
 app = typer.Typer()
 
 
 @app.command()
 def train(path: str = "conf.yml"):
-    train_from_conf(path)
+    workflow = Train(yaml.full_load(open(path)))
+    workflow.start()
 
 
 app()

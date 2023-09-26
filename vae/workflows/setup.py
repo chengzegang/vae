@@ -1,3 +1,4 @@
+from functools import partial
 import os
 from dataclasses import dataclass, field
 
@@ -7,6 +8,7 @@ from torch.optim import AdamW, Optimizer, swa_utils
 from torch.utils.data import DataLoader, Dataset
 
 from .. import data, models
+from torch.utils.checkpoint import checkpoint
 
 
 class EMA:
@@ -77,7 +79,12 @@ class Setup:
         self.dtype = torch.dtypes(self.conf.pop("dtype", "float32"))
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
         self.world_size = int(os.environ.get("WORLD_SIZE", 1))
-        self.model = models.VAE.from_meta(self.conf).to(self.device)
+        self.model = (
+            models.VAE.from_meta(self.conf)
+            .to(self.device)
+            .to(memory_format=torch.channels_last)
+        )
+        self.apply_grad_checkpoint()
         self.optimizer = AdamW(
             self.model.parameters(),
             lr=self.lr,
@@ -102,3 +109,12 @@ class Setup:
             self.decay,
             self.start_step,
         )
+
+    def apply_grad_checkpoint(self):
+        for layer in self.model.encoder.layers:
+            layer._org_forward = layer.forward
+            layer.forward = partial(checkpoint, layer._org_forward, use_reentrant=False)
+
+        for layer in self.model.decoder.layers:
+            layer._org_forward = layer.forward
+            layer.forward = partial(checkpoint, layer._org_forward, use_reentrant=False)
