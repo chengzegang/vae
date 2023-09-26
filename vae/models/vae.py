@@ -1,6 +1,6 @@
 import copy
 from functools import partial
-from typing import Any, Mapping
+from typing import Any, List, Mapping
 
 import torch
 from torch import Tensor, nn
@@ -18,13 +18,20 @@ from ..modules import UNetDecoder, UNetEncoder
 class VAE(nn.Module):
     def __init__(
         self,
-        encoder: UNetEncoder,
-        decoder: UNetDecoder,
+        encoder: UNetEncoder | None = None,
+        decoder: UNetDecoder | None = None,
+        in_channels: int | None = None,
+        out_channels: int | None = None,
+        channels: List[int] | None = None,
+        latent_size: int | None = None,
     ):
         super().__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-
+        if encoder is not None and decoder is not None:
+            self.encoder = encoder
+            self.decoder = decoder
+        else:
+            self.encoder = UNetEncoder(in_channels, channels, latent_size * 2)
+            self.decoder = UNetDecoder(out_channels, channels, latent_size)
         for layer in self.encoder.layers + [self.encoder.in_conv]:
             layer._org_forward_impl = layer.forward
             layer.forward = partial(checkpoint, layer.forward, use_reentrant=False)
