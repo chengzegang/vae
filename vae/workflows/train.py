@@ -18,6 +18,7 @@ class Train:
     model: VAE
     data: DataLoader
     optimizer: Optimizer
+    ema: EMA
     save_every: int = 100
     total_epochs: int = 100
     step: int = 0
@@ -49,10 +50,11 @@ class Train:
                     loss = self.model.train_step(
                         batch, kl_weights[self.step % self.kl_anneal_steps]
                     )
+                self.model.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.step(self.optimizer)
+                self.ema.step(self.step)
                 scaler.update()
-                self.model.zero_grad()
 
                 print(
                     f"Epoch {self.epoch} Step {self.step} Loss {loss.item():.6f} ",

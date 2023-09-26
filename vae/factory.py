@@ -9,8 +9,10 @@ from torch.utils.data import DataLoader
 def train_from_conf(path: str):
     conf = yaml.safe_load(open(path))
     env = Environment.from_meta(conf)
+
     model = VAE.from_meta(conf)
     optimizer = Optimizer.from_meta(conf)(model.parameters())
+    ema = EMA.from_meta(conf)(model, optimizer)
     data = Datasets[conf["dataset"]].value.from_meta(conf)
     data = DataLoader(
         data,
@@ -23,6 +25,7 @@ def train_from_conf(path: str):
         model=model,
         data=data,
         optimizer=optimizer,
+        ema=ema,
         total_epochs=conf["total_epochs"],
     )
     workflow.start()

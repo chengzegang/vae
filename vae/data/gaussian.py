@@ -21,6 +21,7 @@ class Gaussian:
         qmean = qz[:, : z.shape[1] // 2]
         qvar = cls.clamp(z[:, z.shape[1] // 2 :], min_logvar, max_logvar)
         qz = torch.cat([qmean, qvar], dim=1)
+        qz = z + (qz - z).detach()
         return cls(
             z,
             qz,
