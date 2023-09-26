@@ -1,3 +1,9 @@
+---
+language: en
+license: mit
+model_name: vae
+---
+
 # Variational AutoEncoder
 
 -----
