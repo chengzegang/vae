@@ -227,6 +227,6 @@ class ResidualBlock(nn.Module):
             else QuantConv2d(in_channels, out_channels, 1, bias=False)
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, extra: dict | None = None) -> Tensor:
         x = self.shortcut(x) + self.conv3(self.conv2(self.conv1(x)))
         return x

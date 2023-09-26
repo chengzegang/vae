@@ -1,38 +1,14 @@
 from collections import OrderedDict
-from dataclasses import dataclass, field
-
 import torch
 from torch import Tensor
 from torch.cuda.amp import GradScaler
-from torch.utils.data import DataLoader
 import os
-from .bases import EMA, Environment, Optimizer, PerParameterFinetuning as PPF
-from ..models.vae import VAE
 import matplotlib.pyplot as plt
 import torchvision.transforms.v2.functional as TF
+from .setup import Setup
 
 
-@dataclass
-class Train:
-    env: Environment
-    model: VAE
-    data: DataLoader
-    optimizer: Optimizer
-    ema: EMA
-    save_every: int = 100
-    total_epochs: int = 100
-    step: int = 0
-    epoch: int = 0
-    kl_weight_min: float = 1e-3
-    kl_weight_max: float = 1e-6
-    kl_anneal_steps: int = 10000
-    grad_norm_reg: float = 1e-4
-    ppf_steps: int = 10
-    ppf: PPF = field(init=False)
-
-    def __post_init__(self):
-        self.ppf = PPF(self.model, self.ppf_steps)
-
+class Train(Setup):
     def start(self) -> None:
         scaler = GradScaler()
         kl_weights = torch.linspace(
@@ -42,11 +18,11 @@ class Train:
         for ep in range(self.epoch, self.total_epochs):
             self.epoch = ep
             for batch in self.data:
-                batch = batch.to(self.env.device).contiguous(
+                batch = batch.to(self.device).contiguous(
                     memory_format=torch.channels_last
                 )
                 self.model.train()
-                with torch.autocast("cuda", self.env.dtype):
+                with torch.autocast("cuda", self.dtype):
                     loss = self.model.train_step(
                         batch, kl_weights[self.step % self.kl_anneal_steps]
                     )
@@ -75,13 +51,13 @@ class Train:
         for k, v in state.items():
             org_state[k.replace("_org_mod.", "")] = v
         org_state["step"] = self.step
-        torch.save(org_state, os.path.join(self.env.log_dir, "model.pt"))
+        torch.save(org_state, os.path.join(self.log_dir, "model.pt"))
 
     @torch.no_grad()
     def load(self):
         self.model.eval()
         try:
-            state = torch.load(os.path.join(self.env.log_dir, "model.pt"))
+            state = torch.load(os.path.join(self.log_dir, "model.pt"))
             org_state = OrderedDict()
             for k, v in state.items():
                 org_state[k.replace("_org_mod.", "")] = v
@@ -105,5 +81,5 @@ class Train:
         ax.set_xticks([])
         ax.set_yticks([])
         fig.tight_layout()
-        fig.savefig(f"{self.env.log_dir}/result.png")
+        fig.savefig(f"{self.log_dir}/result.png")
         plt.close(fig)

@@ -1,6 +1,6 @@
 import copy
 from functools import partial
-from typing import Any, List, Mapping
+from typing import Any, List, Mapping, Type
 
 import torch
 from torch import Tensor, nn
@@ -12,7 +12,7 @@ from torch.utils.checkpoint import checkpoint
 
 from .. import modules
 from ..data.gaussian import Gaussian
-from ..modules import UNetDecoder, UNetEncoder
+from ..modules import UNetDecoder, UNetEncoder, CodeUNetEncoder, CodeUNetDecoder
 
 
 class VAE(nn.Module):
@@ -57,16 +57,18 @@ class VAE(nn.Module):
         self.apply(convert_submodules)
 
     @classmethod
-    def from_meta(cls, meta: dict) -> "VAE":
+    def from_meta_with_type(
+        cls, meta: dict, en_type: Type[nn.Module], de_type: Type[nn.Module]
+    ) -> "VAE":
         encoder_meta = meta["model"].copy()
         encoder_meta["latent_size"] = encoder_meta["latent_size"] * 2
         decoder_meta = meta["model"].copy()
         decoder_meta["out_channels"] = decoder_meta.pop("in_channels")
         obj = cls(
-            encoder=UNetEncoder(**encoder_meta),
-            decoder=UNetDecoder(**decoder_meta),
+            encoder=en_type(**encoder_meta),
+            decoder=de_type(**decoder_meta),
         )
-        obj.to(meta["device"])
+        obj.to(meta.get(torch.dtypes("model_dtype"), torch.float32))
         if meta.get("ddp", False):
             obj.encoder = DDP(
                 obj.encoder, gradient_as_bucket_view=True, static_graph=True
@@ -74,7 +76,12 @@ class VAE(nn.Module):
             obj.decoder = DDP(
                 obj.decoder, gradient_as_bucket_view=True, static_graph=True
             )
+
         return obj
+
+    @classmethod
+    def from_meta(cls, meta: dict) -> "VAE":
+        return cls.from_meta_with_type(meta, UNetEncoder, UNetDecoder)
 
     @torch.jit.export
     def encode(self, x: Tensor) -> Gaussian:
@@ -106,3 +113,9 @@ class VAE(nn.Module):
         z = self.encode(x)
         xh = self.decode(z.sample())
         return xh
+
+
+class CodeVAE(VAE):
+    @classmethod
+    def from_meta(cls, meta: dict) -> "CodeVAE":
+        return cls.from_meta_with_type(meta, CodeUNetEncoder, CodeUNetDecoder)

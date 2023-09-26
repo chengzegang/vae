@@ -17,7 +17,7 @@ class ConvDown(nn.Module):
         self.res = ResidualBlock(in_channels, out_channels, eps)
         self.down = QuantConv2d(out_channels, out_channels, kernel_size=2, stride=2)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, extra: dict | None = None) -> Tensor:
         x = self.res(x)
         x = self.down(x)
         return x
@@ -39,7 +39,7 @@ class ConvUp(nn.Module):
         )
         self.res = ResidualBlock(out_channels, out_channels, eps)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, extra: dict | None = None) -> Tensor:
         x = self.up(x)
         x = self.res(x)
         return x
@@ -68,7 +68,7 @@ class UNetEncoder(nn.Module):
         )
         self.out_conv = QuantConv2d(channels[-1], latent_size, kernel_size=1)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, extra: dict | None = None) -> Tensor:
         x = self.in_conv(x)
         for layer in self.layers:
             x = layer(x)
@@ -100,10 +100,26 @@ class UNetDecoder(nn.Module):
         self.out_norm = nn.InstanceNorm2d(channels[-1], eps=eps)
         self.out = QuantConv2d(channels[-1], out_channels, kernel_size=1)
 
-    def forward(self, qz: Tensor) -> Tensor:
+    def forward(self, qz: Tensor, extra: dict | None = None) -> Tensor:
         x = self.in_conv(qz)
         x = self.attn(x)
         for layer in self.layers:
             x = layer(x)
         x = self.out(x)
         return x
+
+
+class UNet(nn.Module):
+    def __init__(self, encoder: nn.Module, decoder: nn.Module):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, x: Tensor, extra: dict | None = None) -> Tensor:
+        z = self.encoder(x)
+        x = self.decoder(z)
+        return x
+
+    @classmethod
+    def from_encoder_decoder(cls, encoder: nn.Module, decoder: nn.Module) -> "UNet":
+        return cls(encoder, decoder)

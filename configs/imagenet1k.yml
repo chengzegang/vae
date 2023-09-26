@@ -11,6 +11,7 @@ image_size: 256
 root: /mnt/f/datasets/imagenet
 dataset: imagefolder
 ema_lr: 1.0e-5
+log_dir: logs/imagenet1k
 model:
   in_channels: 3
   channels: [64, 128, 256, 512]
