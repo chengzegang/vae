@@ -1,3 +1,4 @@
+dependencies = ["torch"]
 from vae import models
 import torch
 import os
@@ -9,13 +10,7 @@ def vae(pretrained=True, qint8: bool = True, **kwargs):
     )
     model.eval()
     if pretrained:
-        ckpt = torch.load(
-            os.path.join(
-                os.path.dirname(__file__),
-                "checkpoints",
-                "imagenet1k_256_64_55100-32_0.015656.pt",
-            )
-        )
+        ckpt = torch.load("checkpoints/imagenet1k_256_64_55100-32_0.015656.pt")
         ckpt.pop("step")
         model.load_state_dict(ckpt)
 
