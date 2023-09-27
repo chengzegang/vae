@@ -60,8 +60,8 @@ class Setup:
     step: int = 0
     epoch: int = 0
     kl_weight_min: float = 1.0
-    kl_weight_max: float = 0.01
-    kl_anneal_steps: int = 10000
+    kl_weight_max: float = 1e-8
+    kl_anneal_steps: int = 50000
 
     device: torch.device = field(init=False)
     dtype: torch.dtype = field(init=False)
@@ -75,12 +75,17 @@ class Setup:
     ema: EMA = field(init=False)
 
     def __post_init__(self):
+        for k, v in self.conf.items():
+            if isinstance(v, (int, float, str, bool)) and hasattr(self, k):
+                setattr(self, k, v)
+        os.makedirs(self.log_dir, exist_ok=True)
         self.device = torch.device(self.conf.pop("device", "cuda"))
         self.dtype = torch.dtypes(self.conf.pop("dtype", "float32"))
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
         self.world_size = int(os.environ.get("WORLD_SIZE", 1))
         self.model = (
-            models.VAE.from_meta(self.conf)
+            getattr(models, self.conf["model_type"])
+            .from_meta(self.conf)
             .to(self.device)
             .to(memory_format=torch.channels_last)
         )
@@ -99,8 +104,6 @@ class Setup:
             shuffle=True,
             num_workers=self.num_workers,
         )
-        self.log_dir = self.conf.get("log_dir", "logs")
-        self.ddp = self.conf.get("ddp", False)
         self.ema = EMA(
             self.model,
             self.optimizer,
@@ -112,9 +115,18 @@ class Setup:
 
     def apply_grad_checkpoint(self):
         for layer in self.model.encoder.layers:
-            layer._org_forward = layer.forward
-            layer.forward = partial(checkpoint, layer._org_forward, use_reentrant=False)
+            setattr(layer, "_org_forward", layer.forward)
+            setattr(
+                layer,
+                "forward",
+                partial(checkpoint, layer.forward, use_reentrant=False),
+            )
 
         for layer in self.model.decoder.layers:
-            layer._org_forward = layer.forward
-            layer.forward = partial(checkpoint, layer._org_forward, use_reentrant=False)
+            setattr(layer, "_org_forward", layer.forward)
+            setattr(
+                layer,
+                "forward",
+                partial(checkpoint, layer.forward, use_reentrant=False),
+            )
+        print("Applied gradient checkpointing")

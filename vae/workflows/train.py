@@ -61,7 +61,7 @@ class Train(Setup):
             org_state = OrderedDict()
             for k, v in state.items():
                 org_state[k.replace("_org_mod.", "")] = v
-            self.model.load_state_dict(org_state, strict=False)
+            self.model.partial_load_state_dict(org_state, strict=False)
             self.step = state["step"]
         except Exception as e:
             print(e)

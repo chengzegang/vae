@@ -1,7 +1,9 @@
+from collections import OrderedDict
 from typing import Any
 import torch
 import torch.library as lib
 from enum import Enum
+from torch import nn
 
 
 def dtypes(name: str) -> torch.dtype:
@@ -59,3 +61,15 @@ def dtypes(name: str) -> torch.dtype:
 
 
 setattr(torch, "dtypes", dtypes)
+
+
+def partial_load_state_dict(mod: nn.Module, state: dict, **kwargs):
+    part = OrderedDict()
+    for k, v in state.items():
+        if k in mod.state_dict() and mod.state_dict()[k].shape == v.shape:
+            part[k] = v
+    mod.load_state_dict(part, strict=False)
+    return mod
+
+
+setattr(nn.Module, "partial_load_state_dict", partial_load_state_dict)
